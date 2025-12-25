@@ -4,7 +4,13 @@ import GameInterface from './components/GameInterface';
 import { useGameLogic } from './hooks/useGameLogic';
 
 function App() {
-  const { stats, chatHistory, diceResult, handleChoice } = useGameLogic();
+  const { gameState, chatHistory, diceResult, handleChoice, handleMove, resetGame } = useGameLogic();
+
+  // Calculate current room type for HeaderImage
+  const { x, y } = gameState.playerPosition;
+  // Ensure we don't crash on initial render or boundaries if logic fails (though logic is safe)
+  const currentRoom = gameState.grid[y] && gameState.grid[y][x];
+  const currentRoomType = currentRoom ? currentRoom.type : 'empty';
 
   return (
     <div className="w-full h-screen bg-slate-950 flex justify-center overflow-hidden">
@@ -16,12 +22,15 @@ function App() {
         </div>
 
         <div className="relative z-10 flex flex-col h-full">
-          <HeaderImage />
-          <StatusCard stats={stats} />
+          <HeaderImage currentRoomType={currentRoomType} />
+          <StatusCard stats={gameState} />
           <GameInterface
             chatHistory={chatHistory}
             onChoice={handleChoice}
             diceResult={diceResult}
+            gameState={gameState}
+            onMove={handleMove}
+            onReset={resetGame}
           />
         </div>
       </div>
