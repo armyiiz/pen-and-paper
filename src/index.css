@@ -1,0 +1,22 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer utilities {
+  .glass-panel {
+    @apply bg-magical-purple-900/40 backdrop-blur-md border border-magical-purple-500/30 shadow-lg shadow-magical-purple-900/20;
+  }
+
+  .glass-button {
+    @apply bg-magical-purple-600/80 hover:bg-magical-purple-500/90 text-white backdrop-blur-sm border border-magical-purple-400/50 shadow-md transition-all duration-200 active:scale-95;
+  }
+
+  .text-shadow-glow {
+    text-shadow: 0 0 10px rgba(139, 92, 246, 0.5);
+  }
+}
+
+body {
+  @apply bg-slate-900 text-white overflow-hidden;
+  font-family: 'Kanit', 'Inter', system-ui, sans-serif;
+}
