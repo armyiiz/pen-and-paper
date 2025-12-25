@@ -14,64 +14,68 @@ interface GameInterfaceProps {
 
 const MiniMap: React.FC<{ gameState: GameState }> = ({ gameState }) => {
     return (
-        <div className="bg-slate-900/50 p-2 rounded-lg border border-slate-700 w-full mb-2">
-            <div className="flex items-center justify-between mb-1">
-                 <div className="text-xs text-slate-400 flex items-center gap-1">
-                    <MapIcon size={12} />
-                    <span>Floor {gameState.floorLevel}</span>
+        <div className="bg-slate-900/80 p-1.5 rounded-lg border border-slate-700/50 w-full mb-2 backdrop-blur-sm shadow-lg">
+            <div className="flex items-center justify-between mb-1 text-[10px]">
+                 <div className="text-slate-400 flex items-center gap-1">
+                    <MapIcon size={10} />
+                    <span>F-{gameState.floorLevel}</span>
                  </div>
-                 <div className="text-xs text-magical-purple-300">
-                     Pos: {gameState.playerPosition.x}, {gameState.playerPosition.y}
+                 <div className="text-magical-purple-300 font-mono">
+                     {gameState.playerPosition.x},{gameState.playerPosition.y}
                  </div>
             </div>
-            <div className="grid grid-cols-5 gap-1 aspect-square w-full max-w-[120px] mx-auto">
+            <div className="grid grid-cols-5 gap-0.5 aspect-square w-full mx-auto">
                 {gameState.grid.map((row, y) => (
                     row.map((room, x) => {
                         const isPlayer = gameState.playerPosition.x === x && gameState.playerPosition.y === y;
-                        let bgClass = 'bg-slate-800'; // Unknown/Fog
-                        let borderClass = 'border-slate-800';
+                        let bgClass = 'bg-slate-800/50'; // Unknown/Fog
 
                         if (room.revealed) {
                              if (room.visited) {
                                  // Visited rooms
-                                 bgClass = 'bg-slate-700/50';
-                                 if (room.type === 'start') bgClass = 'bg-green-900/50';
-                                 if (room.type === 'boss') bgClass = 'bg-red-900/50'; // Only if known? visited implies known
+                                 bgClass = 'bg-slate-700';
+                                 if (room.type === 'start') bgClass = 'bg-green-900/60';
+                                 if (room.type === 'boss') bgClass = 'bg-red-900/60';
                              } else {
-                                 // Revealed but not visited (neighbors) - Keep dark but maybe slight hint?
-                                 // Fog of war usually hides content.
-                                 // Requirement: "Fog of War should hide the contents of the rooms (show as unknown blocks). Visited rooms should remain fully visible."
-                                 // Revealed means "seen" but maybe not "entered"?
-                                 // In my logic: neighbors are 'revealed' but not 'visited'.
-                                 // If I haven't visited, I shouldn't know type, except maybe walls? Here it's grid.
-                                 // So revealed neighbors are just "visible blocks" but maybe '?' content.
-                                 bgClass = 'bg-slate-800/80 border-slate-700';
+                                 // Revealed but not visited
+                                 bgClass = 'bg-slate-800/80';
                              }
                         } else {
                              // Hidden completely
-                             bgClass = 'bg-slate-950 opacity-50';
-                             borderClass = 'border-transparent';
+                             bgClass = 'bg-slate-950/30';
                         }
 
                         // Override for current player position
                         if (isPlayer) {
-                             bgClass = 'bg-magical-purple-500 animate-pulse';
-                             borderClass = 'border-magical-purple-300';
+                             bgClass = 'bg-magical-purple-500 animate-pulse ring-1 ring-magical-purple-300';
                         }
 
                         return (
                             <div key={`${x}-${y}`} className={clsx(
-                                "w-full h-full rounded-sm border flex items-center justify-center text-[8px]",
-                                bgClass,
-                                borderClass
+                                "w-full h-full rounded-[1px] flex items-center justify-center text-[6px]",
+                                bgClass
                             )}>
-                                {isPlayer && <div className="w-1.5 h-1.5 bg-white rounded-full" />}
-                                {!isPlayer && room.visited && room.type === 'boss' && <div className="text-red-500">B</div>}
-                                {!isPlayer && room.visited && room.type === 'start' && <div className="text-green-500">S</div>}
+                                {!isPlayer && room.visited && room.type === 'boss' && <span className="text-red-400 font-bold">B</span>}
+                                {!isPlayer && room.visited && room.type === 'start' && <span className="text-green-400 font-bold">S</span>}
                             </div>
                         );
                     })
                 ))}
+            </div>
+        </div>
+    );
+};
+
+const BossHpBar: React.FC<{ currentHp: number, maxHp: number }> = ({ currentHp, maxHp }) => {
+    const percent = Math.max(0, Math.min(100, (currentHp / maxHp) * 100));
+    return (
+        <div className="w-full bg-slate-800 rounded-full h-4 border border-slate-600 overflow-hidden relative shadow-lg mb-2">
+            <div
+                className="h-full bg-gradient-to-r from-red-600 to-red-500 transition-all duration-500 ease-out"
+                style={{ width: `${percent}%` }}
+            />
+            <div className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white text-shadow-sm">
+                BOSS HP: {currentHp}/{maxHp}
             </div>
         </div>
     );
@@ -96,20 +100,20 @@ const GameInterface: React.FC<GameInterfaceProps> = ({
   const isGameOver = gameState.gameStatus === 'gameover';
   const isVictory = gameState.gameStatus === 'victory';
 
+  // Check if current room is Boss to show HP bar
+  const { x, y } = gameState.playerPosition;
+  const currentRoom = gameState.grid[y][x];
+  const isBossCombat = isCombat && currentRoom.type === 'boss';
+
   return (
-    <div className="flex flex-col flex-1 h-full min-h-0 px-4 pt-6 pb-4 gap-4">
-      {/* Top Bar with Map (Visible only in exploration/combat?) Let's show always for context */}
-      <div className="absolute top-2 right-4 z-30 w-32">
-         {/* Mini Map Overlay - actually placing it inside normal flow might be better for mobile layout */}
+    <div className="flex flex-col flex-1 h-full min-h-0 px-4 pt-4 pb-4 gap-3">
+      {/* Top Right Mini Map - Absolute Positioned */}
+      <div className="absolute top-4 right-4 z-30 w-20">
+         <MiniMap gameState={gameState} />
       </div>
 
       {/* Chat Area */}
-      <div className="glass-panel rounded-xl flex-1 overflow-hidden flex flex-col relative">
-         {/* Mini Map inside Chat Header area for visibility */}
-         <div className="absolute top-2 right-2 z-10 w-28 opacity-90 hover:opacity-100 transition-opacity">
-            <MiniMap gameState={gameState} />
-         </div>
-
+      <div className="glass-panel rounded-xl flex-1 overflow-hidden flex flex-col relative bg-slate-900/40 backdrop-blur-sm border-slate-700/30">
          {/* Dice Overlay */}
         {diceResult.visible && (
           <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
@@ -156,23 +160,30 @@ const GameInterface: React.FC<GameInterfaceProps> = ({
             </div>
         )}
 
+        {/* Boss HP Bar Overlay */}
+        {isBossCombat && currentRoom.enemyHp !== undefined && (
+            <div className="absolute top-0 left-0 right-0 p-2 z-20 bg-gradient-to-b from-slate-900/90 to-transparent">
+                <BossHpBar currentHp={currentRoom.enemyHp} maxHp={currentRoom.maxEnemyHp || 50} />
+            </div>
+        )}
+
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4 pt-14"> {/* Added pt-14 for map space */}
+        <div className={clsx("flex-1 overflow-y-auto p-4 space-y-3", isBossCombat ? "pt-12" : "pt-4")}>
           {chatHistory.map((msg) => (
             <div key={msg.id} className={clsx(
               "flex flex-col max-w-[85%] animate-in slide-in-from-bottom-2 duration-300",
               msg.sender === 'Player' ? "self-end items-end" : "self-start items-start"
             )}>
-              <span className="text-xs text-magical-purple-300 mb-1 px-1">
+              <span className="text-[10px] text-magical-purple-300 mb-0.5 px-1 opacity-80">
                 {msg.sender === 'GM' ? 'Game Master' : 'You'}
               </span>
               <div className={clsx(
-                "p-3 rounded-2xl text-sm leading-relaxed shadow-sm",
+                "p-2.5 rounded-2xl text-xs leading-relaxed shadow-sm",
                 msg.sender === 'Player'
                   ? "bg-magical-purple-600 text-white rounded-tr-none"
-                  : "bg-slate-800/80 text-slate-100 rounded-tl-none border border-slate-700",
-                msg.type === 'success' && "border-l-4 border-l-green-500",
-                msg.type === 'failure' && "border-l-4 border-l-red-500"
+                  : "bg-slate-800/90 text-slate-100 rounded-tl-none border border-slate-700/50",
+                msg.type === 'success' && "border-l-2 border-l-green-500",
+                msg.type === 'failure' && "border-l-2 border-l-red-500"
               )}>
                 {msg.text}
               </div>
@@ -183,7 +194,7 @@ const GameInterface: React.FC<GameInterfaceProps> = ({
       </div>
 
       {/* Action Buttons */}
-      <div className="grid grid-cols-3 gap-3 h-20 shrink-0">
+      <div className="grid grid-cols-3 gap-3 h-16 shrink-0">
         {isCombat ? (
             <>
                 <button
@@ -191,8 +202,8 @@ const GameInterface: React.FC<GameInterfaceProps> = ({
                 disabled={diceResult.visible}
                 className="glass-button rounded-xl flex flex-col items-center justify-center gap-1 group"
                 >
-                <Sword size={20} className="group-hover:scale-110 transition-transform" />
-                <span className="text-xs font-bold">โจมตี</span>
+                <Sword size={18} className="group-hover:scale-110 transition-transform" />
+                <span className="text-[10px] font-bold">โจมตี</span>
                 </button>
 
                 <button
@@ -200,8 +211,8 @@ const GameInterface: React.FC<GameInterfaceProps> = ({
                 disabled={diceResult.visible}
                 className="glass-button rounded-xl flex flex-col items-center justify-center gap-1 group bg-indigo-600/80 hover:bg-indigo-500/90 border-indigo-400/50"
                 >
-                <Shield size={20} className="group-hover:scale-110 transition-transform" />
-                <span className="text-xs font-bold">ป้องกัน</span>
+                <Shield size={18} className="group-hover:scale-110 transition-transform" />
+                <span className="text-[10px] font-bold">ป้องกัน</span>
                 </button>
 
                 <button
@@ -209,42 +220,34 @@ const GameInterface: React.FC<GameInterfaceProps> = ({
                 disabled={diceResult.visible}
                 className="glass-button rounded-xl flex flex-col items-center justify-center gap-1 group bg-slate-600/80 hover:bg-slate-500/90 border-slate-400/50"
                 >
-                <Footprints size={20} className="group-hover:scale-110 transition-transform" />
-                <span className="text-xs font-bold">หลบหนี</span>
+                <Footprints size={18} className="group-hover:scale-110 transition-transform" />
+                <span className="text-[10px] font-bold">หลบหนี</span>
                 </button>
             </>
         ) : isExploration ? (
-            // Exploration Controls (D-Pad style or Grid style)
-            // 3 cols: [Empty] [North] [Empty]
-            //         [West]  [Down?] [East]
-            //         [Empty] [South] [Empty]
-            // But we have 3 slots in the grid container defined in CSS.
-            // Let's change the container style dynamically or use a different layout.
-            // The parent has "grid-cols-3".
-            // We can span cols.
             <>
                <div className="flex items-center justify-center">
                    <button
                        onClick={() => onMove('W')}
                        className="glass-button rounded-xl w-full h-full flex flex-col items-center justify-center hover:bg-slate-700/50"
                    >
-                       <Compass size={20} className="-rotate-90" />
+                       <Compass size={18} className="-rotate-90" />
                        <span className="text-[10px] font-bold">West</span>
                    </button>
                </div>
                <div className="flex flex-col gap-2">
                    <button
                        onClick={() => onMove('N')}
-                       className="glass-button rounded-xl flex-1 flex flex-col items-center justify-center hover:bg-slate-700/50"
+                       className="glass-button rounded-xl flex-1 w-full flex flex-col items-center justify-center hover:bg-slate-700/50"
                    >
-                       <Compass size={20} />
+                       <Compass size={16} />
                        <span className="text-[10px] font-bold">North</span>
                    </button>
                    <button
                        onClick={() => onMove('S')}
-                       className="glass-button rounded-xl flex-1 flex flex-col items-center justify-center hover:bg-slate-700/50"
+                       className="glass-button rounded-xl flex-1 w-full flex flex-col items-center justify-center hover:bg-slate-700/50"
                    >
-                       <Compass size={20} className="rotate-180" />
+                       <Compass size={16} className="rotate-180" />
                        <span className="text-[10px] font-bold">South</span>
                    </button>
                </div>
@@ -253,13 +256,12 @@ const GameInterface: React.FC<GameInterfaceProps> = ({
                        onClick={() => onMove('E')}
                        className="glass-button rounded-xl w-full h-full flex flex-col items-center justify-center hover:bg-slate-700/50"
                    >
-                       <Compass size={20} className="rotate-90" />
+                       <Compass size={18} className="rotate-90" />
                        <span className="text-[10px] font-bold">East</span>
                    </button>
                </div>
             </>
         ) : (
-            // Game Over / Victory State - Buttons disabled or Hidden
              <div className="col-span-3 flex items-center justify-center text-slate-500 text-sm">
                  {isVictory ? "ภารกิจเสร็จสิ้น" : "จบเกม"}
              </div>

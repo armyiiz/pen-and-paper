@@ -6,6 +6,8 @@ export type Room = {
   type: RoomType;
   visited: boolean;
   revealed: boolean;
+  enemyHp?: number;
+  maxEnemyHp?: number;
 };
 
 export type GameStatus = 'exploration' | 'combat' | 'victory' | 'gameover';
@@ -74,7 +76,14 @@ export const useGameLogic = () => {
       bossX = Math.floor(Math.random() * GRID_SIZE);
       bossY = Math.floor(Math.random() * GRID_SIZE);
     } while (bossX === startX && bossY === startY);
-    newGrid[bossY][bossX].type = 'boss';
+
+    newGrid[bossY][bossX] = {
+        type: 'boss',
+        visited: false,
+        revealed: false,
+        enemyHp: 50,
+        maxEnemyHp: 50
+    };
 
     // Populate other rooms
     for (let y = 0; y < GRID_SIZE; y++) {
@@ -192,7 +201,6 @@ export const useGameLogic = () => {
           } else if (room.type === 'treasure') {
               const goldFound = Math.floor(Math.random() * 50) + 20;
               setGameState(prev => {
-                  // Let's modify the room type to empty to consume the event.
                   const updatedGrid = [...prev.grid.map(row => [...row])];
                   updatedGrid[y][x].type = 'empty';
                   return {
@@ -241,75 +249,101 @@ export const useGameLogic = () => {
     addMessage('Player', `ฉันเลือก: ${action}`, 'normal');
 
     setTimeout(() => {
+      // Current Room Context
+      const { x, y } = gameState.playerPosition;
+      const currentRoom = gameState.grid[y][x];
+      const isBoss = currentRoom.type === 'boss';
+
       if (isSuccess) {
         if (action === 'โจมตี') {
-          const goldGain = Math.floor(Math.random() * 20) + 10;
+          // Attack Logic
+          if (isBoss) {
+              const playerDmg = Math.floor(Math.random() * 10) + 10; // 10-20 dmg
 
-          // Logic for winning combat
-          // Check if current room is Boss or Battle
-          const { x, y } = gameState.playerPosition;
-          const currentRoomType = gameState.grid[y][x].type;
+              setGameState(prev => {
+                  const newGrid = [...prev.grid.map(row => [...row])];
+                  const room = { ...newGrid[y][x] }; // Copy room
+                  const currentHp = room.enemyHp || 50;
+                  const newEnemyHp = Math.max(0, currentHp - playerDmg);
+                  room.enemyHp = newEnemyHp;
+                  newGrid[y][x] = room;
 
-          setGameState((prev) => {
-              const newGrid = [...prev.grid.map(row => [...row])];
-              newGrid[y][x].type = 'empty'; // Clear room
+                  if (newEnemyHp === 0) {
+                      // Victory against Boss
+                      room.type = 'empty';
+                      return {
+                          ...prev,
+                          grid: newGrid,
+                          gameStatus: 'victory',
+                          gold: prev.gold + 500
+                      };
+                  } else {
+                      // Boss survives -> Boss attacks back?
+                      // Or just turn ends. Let's make boss attack back if it survives?
+                      // The prompt says "The player must successfully attack several times".
+                      // If player succeeds, usually they don't take damage?
+                      // Let's keep it simple: Success = Deal Damage. Failure = Take Damage.
+                      return {
+                          ...prev,
+                          grid: newGrid
+                      };
+                  }
+              });
 
-              let newStatus: GameStatus = 'exploration';
-              if (currentRoomType === 'boss') {
-                  newStatus = 'victory';
-              }
+              addMessage('GM', `สำเร็จ! (Roll: ${roll}) คุณโจมตีบอสอย่างรุนแรง! (${playerDmg} dmg)`, 'success');
 
-              return {
-                  ...prev,
-                  gold: prev.gold + goldGain,
-                  grid: newGrid,
-                  gameStatus: newStatus
-              };
-          });
+              // If boss died, msg is handled above via state change check? No, state update is scheduled.
+              // Need check here implicitly or rely on effect?
+              // State update is async inside the timeout, but we are inside the timeout.
+              // We can't see the new state yet.
+              // Let's assume if we calculated 0, it's dead.
+               const currentHp = currentRoom.enemyHp || 50;
+               if (currentHp - playerDmg <= 0) {
+                   setTimeout(() => addMessage('GM', 'คุณปราบราชันย์แห่งดันเจี้ยนได้สำเร็จ! ชัยชนะเป็นของคุณ!', 'success'), 500);
+               }
 
-          if (currentRoomType === 'boss') {
-              addMessage('GM', `สุดยอด! (Roll: ${roll}) คุณปราบมอนสเตอร์บอสได้สำเร็จ! ได้รับ ${goldGain} Gold!`, 'success');
           } else {
+              // Normal Monster - 1 Hit Kill
+              const goldGain = Math.floor(Math.random() * 20) + 10;
+              setGameState((prev) => {
+                  const newGrid = [...prev.grid.map(row => [...row])];
+                  newGrid[y][x].type = 'empty'; // Clear room
+                  return {
+                      ...prev,
+                      gold: prev.gold + goldGain,
+                      grid: newGrid,
+                      gameStatus: 'exploration'
+                  };
+              });
               addMessage('GM', `สำเร็จ! (Roll: ${roll}) คุณกำจัดมอนสเตอร์ได้! ได้รับ ${goldGain} Gold!`, 'success');
           }
 
         } else if (action === 'ป้องกัน') {
            const hpHeal = 5;
            setGameState((prev) => ({ ...prev, hp: Math.min(prev.maxHp, prev.hp + hpHeal) }));
-           addMessage('GM', `สำเร็จ! (Roll: ${roll}) คุณป้องกันการโจมตีได้และฟื้นฟูพลังเล็กน้อย`, 'success');
-           // Defend doesn't end combat usually? Or maybe simple logic: 1 turn win/loss?
-           // Original logic was simple 1-turn event.
-           // Requirement: "Battle: ... Once won or escaped, the room becomes 'Empty'".
-           // Existing logic implies one interaction resolves the encounter?
-           // Let's assume Attack kills it (Win), Escape leaves it (Success).
-           // Defend might just heal and stay in combat? Or counts as surviving a round?
-           // For simplicity of this "Simple RPG", let's say Defend heals but you are still in combat?
-           // BUT the original code was one-off event.
-           // To keep it simple: Attack = Try to Kill. Escape = Try to Run. Defend = Heal & Skip Turn (stay in combat).
-           // If I stay in combat, I need to allow another action.
-           // So Defend -> Stay in 'combat'.
+           addMessage('GM', `สำเร็จ! (Roll: ${roll}) คุณป้องกันและฟื้นฟูพลังเล็กน้อย`, 'success');
         } else if (action === 'หลบหนี') {
-           setGameState(prev => ({ ...prev, gameStatus: 'exploration' }));
-           // Escape successful: Move back? Or just stay in room but safe?
-           // Usually escape moves you back.
-           // Or just ends combat but monster stays?
-           // User said: "Once won or escaped, the room becomes 'Empty'".
-           // Wait, if escaped, room becomes Empty? That means monster is gone?
-           // That sounds easier. Let's do that.
-            setGameState((prev) => {
-              const newGrid = [...prev.grid.map(row => [...row])];
-              const { x, y } = prev.playerPosition;
-              newGrid[y][x].type = 'empty';
-              return {
-                  ...prev,
-                  grid: newGrid,
-                  gameStatus: 'exploration'
-              };
-            });
-           addMessage('GM', `สำเร็จ! (Roll: ${roll}) คุณหลบหนีออกมาได้อย่างปลอดภัย (มอนสเตอร์หนีไปแล้ว)`, 'success');
+           // Escape Logic
+           if (isBoss) {
+               addMessage('GM', `(Roll: ${roll}) คุณไม่สามารถหนีจากบอสได้!`, 'failure');
+               // Fail to escape boss -> Take damage?
+               const dmg = 10;
+               setGameState(prev => ({ ...prev, hp: Math.max(0, prev.hp - dmg) }));
+           } else {
+               setGameState((prev) => {
+                  const newGrid = [...prev.grid.map(row => [...row])];
+                  newGrid[y][x].type = 'empty';
+                  return {
+                      ...prev,
+                      grid: newGrid,
+                      gameStatus: 'exploration'
+                  };
+                });
+               addMessage('GM', `สำเร็จ! (Roll: ${roll}) คุณหลบหนีออกมาได้สำเร็จ`, 'success');
+           }
         }
       } else {
-         // Failure
+         // Failure - Player takes damage
          const dmg = Math.floor(Math.random() * 10) + 5;
 
          setGameState((prev) => {
@@ -321,7 +355,7 @@ export const useGameLogic = () => {
              };
          });
 
-         addMessage('GM', `ล้มเหลว! (Roll: ${roll}) คุณพลาดท่าถูกมอนสเตอร์โจมตี เสีย ${dmg} HP!`, 'failure');
+         addMessage('GM', `ล้มเหลว! (Roll: ${roll}) คุณพลาดท่าถูกโจมตีสวนกลับ! เสีย ${dmg} HP`, 'failure');
       }
     }, 1000);
   };
