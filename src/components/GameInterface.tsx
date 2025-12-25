@@ -1,7 +1,7 @@
 import React, { useRef, useEffect } from 'react';
 import type { ChatMessage, GameState } from '../hooks/useGameLogic';
 import clsx from 'clsx';
-import { Sword, Shield, Footprints, Dices, RefreshCw, Skull, Map as MapIcon, Compass } from 'lucide-react';
+import { Sword, Shield, Footprints, Dices, RefreshCw, Skull, Map as MapIcon, Compass, Coins } from 'lucide-react';
 
 interface GameInterfaceProps {
   chatHistory: ChatMessage[];

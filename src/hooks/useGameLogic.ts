@@ -50,7 +50,7 @@ export const useGameLogic = () => {
     visible: false,
   });
 
-  const generateDungeon = (level: number): { grid: Room[][]; startPos: Position } => {
+  const generateDungeon = (_level: number): { grid: Room[][]; startPos: Position } => {
     // Initialize grid with empty rooms
     const newGrid: Room[][] = Array(GRID_SIZE).fill(null).map(() =>
       Array(GRID_SIZE).fill(null).map(() => ({
@@ -181,10 +181,10 @@ export const useGameLogic = () => {
     addMessage('Player', `เดินไปทางทิศ ${direction === 'N' ? 'เหนือ' : direction === 'S' ? 'ใต้' : direction === 'E' ? 'ตะวันออก' : 'ตะวันตก'}...`, 'normal');
 
     // Handle Events
-    processRoomEvent(targetRoom, newX, newY, newGrid);
+    processRoomEvent(targetRoom, newX, newY);
   };
 
-  const processRoomEvent = (room: Room, x: number, y: number, currentGrid: Room[][]) => {
+  const processRoomEvent = (room: Room, x: number, y: number) => {
       // Use setTimeout to create a small delay for "arrival" feeling
       setTimeout(() => {
           if (room.type === 'empty' || room.type === 'start') {
@@ -192,11 +192,7 @@ export const useGameLogic = () => {
           } else if (room.type === 'treasure') {
               const goldFound = Math.floor(Math.random() * 50) + 20;
               setGameState(prev => {
-                  const newGrid = [...prev.grid]; // Shallow copy of rows is okay if we mutate objects inside that we just cloned in handleMove?
-                  // Actually handleMove cloned it. But we need to be careful with closure.
-                  // Best to copy again or trust the flow.
                   // Let's modify the room type to empty to consume the event.
-                  // Since 'currentGrid' is from handleMove scope, we need to update state with modified grid.
                   const updatedGrid = [...prev.grid.map(row => [...row])];
                   updatedGrid[y][x].type = 'empty';
                   return {
