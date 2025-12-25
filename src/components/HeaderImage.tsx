@@ -3,9 +3,12 @@ import type { RoomType } from '../hooks/useGameLogic';
 
 interface HeaderImageProps {
   currentRoomType: RoomType;
+  bossHp?: number;
+  maxBossHp?: number;
+  gameStatus: string;
 }
 
-const HeaderImage: React.FC<HeaderImageProps> = ({ currentRoomType }) => {
+const HeaderImage: React.FC<HeaderImageProps> = ({ currentRoomType, bossHp = 0, maxBossHp = 1, gameStatus }) => {
   let imageUrl = '';
   let title = '';
   let subtitle = '';
@@ -46,8 +49,25 @@ const HeaderImage: React.FC<HeaderImageProps> = ({ currentRoomType }) => {
   }
 
   return (
-    <div className="w-full h-64 relative overflow-hidden rounded-b-3xl shadow-2xl shadow-magical-purple-900/50">
+    <div className="w-full h-[45vh] relative overflow-hidden rounded-b-3xl shadow-2xl shadow-magical-purple-900/50 transition-all duration-500">
       <div className="absolute inset-0 bg-gradient-to-t from-slate-900 to-transparent z-10" />
+
+      {/* Boss HP Bar Overlay */}
+      {currentRoomType === 'boss' && gameStatus === 'combat' && (
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30 w-3/4 max-w-xs">
+              <div className="flex justify-between text-xs text-red-200 mb-1 font-bold uppercase tracking-wider text-shadow-glow">
+                  <span>Boss</span>
+                  <span>{bossHp} / {maxBossHp}</span>
+              </div>
+              <div className="h-4 bg-slate-900/80 rounded-full border border-red-900/50 p-0.5 backdrop-blur-sm">
+                  <div
+                    className="h-full bg-gradient-to-r from-red-600 to-red-500 rounded-full transition-all duration-300 shadow-[0_0_10px_rgba(220,38,38,0.5)]"
+                    style={{ width: `${(bossHp / maxBossHp) * 100}%` }}
+                  />
+              </div>
+          </div>
+      )}
+
       <img
         src={imageUrl}
         alt={title}
