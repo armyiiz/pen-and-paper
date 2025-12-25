@@ -1,6 +1,7 @@
 import HeaderImage from './components/HeaderImage';
 import StatusCard from './components/StatusCard';
 import GameInterface from './components/GameInterface';
+import MiniMap from './components/MiniMap';
 import { useGameLogic } from './hooks/useGameLogic';
 
 function App() {
@@ -13,7 +14,10 @@ function App() {
   const currentRoomType = currentRoom ? currentRoom.type : 'empty';
 
   return (
-    <div className="w-full h-screen bg-slate-950 flex justify-center overflow-hidden">
+    <div className="w-full h-screen bg-slate-950 flex justify-center overflow-hidden relative">
+       {/* Floating MiniMap */}
+      <MiniMap gameState={gameState} />
+
       <div className="w-full max-w-md h-full bg-slate-900 shadow-2xl relative flex flex-col">
         {/* Background Ambient Effect */}
         <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
@@ -22,7 +26,12 @@ function App() {
         </div>
 
         <div className="relative z-10 flex flex-col h-full">
-          <HeaderImage currentRoomType={currentRoomType} />
+          <HeaderImage
+             currentRoomType={currentRoomType}
+             bossHp={gameState.bossHp}
+             maxBossHp={gameState.maxBossHp}
+             gameStatus={gameState.gameStatus}
+          />
           <StatusCard stats={gameState} />
           <GameInterface
             chatHistory={chatHistory}

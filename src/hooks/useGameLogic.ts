@@ -21,6 +21,8 @@ export type GameState = {
   gold: number;
   maxHp: number;
   maxMp: number;
+  bossHp: number;
+  maxBossHp: number;
   grid: Room[][];
   playerPosition: Position;
   gameStatus: GameStatus;
@@ -114,6 +116,8 @@ export const useGameLogic = () => {
       gold: 0,
       maxHp: 100,
       maxMp: 50,
+      bossHp: 50,
+      maxBossHp: 50,
       grid,
       playerPosition: startPos,
       gameStatus: 'exploration',
@@ -231,6 +235,13 @@ export const useGameLogic = () => {
     // 1. Roll Dice
     const roll = Math.floor(Math.random() * 20) + 1;
     const isSuccess = roll > 10;
+    const { x, y } = gameState.playerPosition;
+    const currentRoomType = gameState.grid[y][x].type;
+
+    if (action === 'หลบหนี' && currentRoomType === 'boss') {
+        addMessage('System', 'ไม่สามารถหลบหนีจากบอสได้! สู้ตายเท่านั้น!', 'failure');
+        return;
+    }
 
     setDiceResult({ value: roll, isSuccess, visible: true });
 
@@ -243,70 +254,65 @@ export const useGameLogic = () => {
     setTimeout(() => {
       if (isSuccess) {
         if (action === 'โจมตี') {
-          const goldGain = Math.floor(Math.random() * 20) + 10;
-
-          // Logic for winning combat
-          // Check if current room is Boss or Battle
-          const { x, y } = gameState.playerPosition;
-          const currentRoomType = gameState.grid[y][x].type;
-
-          setGameState((prev) => {
-              const newGrid = [...prev.grid.map(row => [...row])];
-              newGrid[y][x].type = 'empty'; // Clear room
-
-              let newStatus: GameStatus = 'exploration';
-              if (currentRoomType === 'boss') {
-                  newStatus = 'victory';
-              }
-
-              return {
-                  ...prev,
-                  gold: prev.gold + goldGain,
-                  grid: newGrid,
-                  gameStatus: newStatus
-              };
-          });
-
+          // Boss Logic
           if (currentRoomType === 'boss') {
-              addMessage('GM', `สุดยอด! (Roll: ${roll}) คุณปราบมอนสเตอร์บอสได้สำเร็จ! ได้รับ ${goldGain} Gold!`, 'success');
+              const dmgToBoss = 10; // Fixed dmg or random? Let's say 10-15
+              setGameState((prev) => {
+                  const newBossHp = Math.max(0, prev.bossHp - dmgToBoss);
+                  const isDead = newBossHp === 0;
+
+                  // If dead
+                  let newStatus: GameStatus = 'combat';
+                  let newGrid = prev.grid;
+
+                  if (isDead) {
+                      newStatus = 'victory';
+                      // Clear room
+                      newGrid = [...prev.grid.map(row => [...row])];
+                      newGrid[y][x].type = 'empty';
+                  }
+
+                  return {
+                      ...prev,
+                      bossHp: newBossHp,
+                      gameStatus: newStatus,
+                      grid: newGrid
+                  };
+              });
+
+              addMessage('GM', `โจมตีสำเร็จ! (Roll: ${roll}) คุณสร้างความเสียหาย ${dmgToBoss} แก่บอส!`, 'success');
           } else {
+             // Normal Monster (One hit kill)
+             const goldGain = Math.floor(Math.random() * 20) + 10;
+             setGameState((prev) => {
+                  const newGrid = [...prev.grid.map(row => [...row])];
+                  newGrid[y][x].type = 'empty';
+                  return {
+                      ...prev,
+                      gold: prev.gold + goldGain,
+                      grid: newGrid,
+                      gameStatus: 'exploration'
+                  };
+              });
               addMessage('GM', `สำเร็จ! (Roll: ${roll}) คุณกำจัดมอนสเตอร์ได้! ได้รับ ${goldGain} Gold!`, 'success');
           }
 
         } else if (action === 'ป้องกัน') {
            const hpHeal = 5;
            setGameState((prev) => ({ ...prev, hp: Math.min(prev.maxHp, prev.hp + hpHeal) }));
-           addMessage('GM', `สำเร็จ! (Roll: ${roll}) คุณป้องกันการโจมตีได้และฟื้นฟูพลังเล็กน้อย`, 'success');
-           // Defend doesn't end combat usually? Or maybe simple logic: 1 turn win/loss?
-           // Original logic was simple 1-turn event.
-           // Requirement: "Battle: ... Once won or escaped, the room becomes 'Empty'".
-           // Existing logic implies one interaction resolves the encounter?
-           // Let's assume Attack kills it (Win), Escape leaves it (Success).
-           // Defend might just heal and stay in combat? Or counts as surviving a round?
-           // For simplicity of this "Simple RPG", let's say Defend heals but you are still in combat?
-           // BUT the original code was one-off event.
-           // To keep it simple: Attack = Try to Kill. Escape = Try to Run. Defend = Heal & Skip Turn (stay in combat).
-           // If I stay in combat, I need to allow another action.
-           // So Defend -> Stay in 'combat'.
+           addMessage('GM', `ป้องกันสำเร็จ! (Roll: ${roll}) คุณฟื้นฟู ${hpHeal} HP และไม่ได้รับความเสียหาย`, 'success');
         } else if (action === 'หลบหนี') {
-           setGameState(prev => ({ ...prev, gameStatus: 'exploration' }));
-           // Escape successful: Move back? Or just stay in room but safe?
-           // Usually escape moves you back.
-           // Or just ends combat but monster stays?
-           // User said: "Once won or escaped, the room becomes 'Empty'".
-           // Wait, if escaped, room becomes Empty? That means monster is gone?
-           // That sounds easier. Let's do that.
-            setGameState((prev) => {
+           setGameState((prev) => {
               const newGrid = [...prev.grid.map(row => [...row])];
               const { x, y } = prev.playerPosition;
-              newGrid[y][x].type = 'empty';
+              newGrid[y][x].type = 'empty'; // Monster gone
               return {
                   ...prev,
                   grid: newGrid,
                   gameStatus: 'exploration'
               };
             });
-           addMessage('GM', `สำเร็จ! (Roll: ${roll}) คุณหลบหนีออกมาได้อย่างปลอดภัย (มอนสเตอร์หนีไปแล้ว)`, 'success');
+           addMessage('GM', `หนีสำเร็จ! (Roll: ${roll}) คุณรอดพ้นจากอันตราย`, 'success');
         }
       } else {
          // Failure
@@ -321,7 +327,7 @@ export const useGameLogic = () => {
              };
          });
 
-         addMessage('GM', `ล้มเหลว! (Roll: ${roll}) คุณพลาดท่าถูกมอนสเตอร์โจมตี เสีย ${dmg} HP!`, 'failure');
+         addMessage('GM', `ล้มเหลว! (Roll: ${roll}) คุณพลาด! ถูกศัตรูโจมตีสวนกลับ เสีย ${dmg} HP!`, 'failure');
       }
     }, 1000);
   };
@@ -334,6 +340,8 @@ export const useGameLogic = () => {
           gold: 0,
           maxHp: 100,
           maxMp: 50,
+          bossHp: 50,
+          maxBossHp: 50,
           grid,
           playerPosition: startPos,
           gameStatus: 'exploration',
